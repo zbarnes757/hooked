@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useReducer, useEffect } from 'react';
 import { Observable } from 'rxjs';
 import { ajax } from 'rxjs/ajax';
 import './App.css';
@@ -6,46 +6,93 @@ import Header from './Header';
 import Search from './Search';
 import Movie, { MovieModel } from './Movie';
 
-const API_KEY = 'd9bf4922';
-const MOVIE_API_URL = `http://www.omdbapi.com/?s=man&apikey=${API_KEY}`;
-
+// Types
 type MovieResponse = {
   Search: MovieModel[];
   Error: string;
   Response: string;
 };
 
+type State = {
+  loading: boolean;
+  movies: MovieModel[];
+  errorMessage: string;
+};
+
+// Setup
+const API_KEY = 'd9bf4922';
+const MOVIE_API_URL = `http://www.omdbapi.com/?s=man&apikey=${API_KEY}`;
+const initialState: State = {
+  loading: true,
+  movies: [],
+  errorMessage: ''
+};
+
+// Helper Functions
 const getMovies$ = (url: string): Observable<MovieResponse> =>
   ajax.getJSON<MovieResponse>(url);
 
+const reducer = (state: State, action: any) => {
+  switch (action.type) {
+    case 'SEARCH_MOVIES_REQUEST':
+      return {
+        ...state,
+        loading: true,
+        errorMessage: ''
+      };
+    case 'SEARCH_MOVIES_SUCCESS':
+      return {
+        ...state,
+        loading: false,
+        movies: action.payload
+      };
+    case 'SEARCH_MOVIES_FAILURE':
+      return {
+        ...state,
+        loading: false,
+        errorMessage: action.error
+      };
+    default:
+      return state;
+  }
+};
+
+// Components
 const App: React.FC = () => {
-  const [loading, setLoading] = useState(true);
-  const [movies, setMovies] = useState<MovieModel[]>([]);
-  const [errorMessage, setErrorMessage] = useState('');
+  const [state, dispatch] = useReducer(reducer, initialState);
 
   useEffect(() => {
     getMovies$(MOVIE_API_URL).subscribe(({ Search }) => {
-      setMovies(Search);
-      setLoading(false);
+      dispatch({
+        type: 'SEARCH_MOVIES_SUCCESS',
+        payload: Search
+      });
     });
   }, []);
 
   const search = (searchValue: string) => {
     const searchURL = `https://www.omdbapi.com/?s=${searchValue}&apikey=${API_KEY}`;
-    setLoading(true);
-    setErrorMessage('');
+    dispatch({
+      type: 'SEARCH_MOVIES_REQUEST'
+    });
 
-    getMovies$(searchURL).subscribe(({ Response, Search: s, Error: e }) => {
+    getMovies$(searchURL).subscribe(({ Response, Search, Error: e }) => {
       if (Response === 'True') {
-        setMovies(s);
-        setLoading(false);
+        dispatch({
+          type: 'SEARCH_MOVIES_SUCCESS',
+          payload: Search
+        });
         return;
       }
 
-      setErrorMessage(e);
-      setLoading(false);
+      dispatch({
+        type: 'SEARCH_MOVIES_FAILURE',
+        error: e
+      });
     });
   };
+
+  const { movies, errorMessage, loading }: State = state;
 
   return (
     <div className="App">
